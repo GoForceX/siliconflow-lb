@@ -5,11 +5,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir ./dist",
-    "docker:build": "docker build -t siliconflow-lb .",
-    "docker:run": "docker run -p 3000:3000 --env-file .env -v ./keys.txt:/usr/src/app/keys.txt siliconflow-lb",
-    "docker:compose": "docker-compose up -d",
-    "docker:logs": "docker-compose logs -f"
+    "build": "bun build src/index.ts --outdir ./dist"
   },
   "dependencies": {
     "elysia": "latest"

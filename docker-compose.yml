@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   siliconflow-lb:
-    build: ghcr.io/goforcex/siliconflow-lb:main
+    image: ghcr.io/goforcex/siliconflow-lb:main
     ports:
       - "3000:3000"
     environment:
@@ -11,26 +9,5 @@ services:
       - LB_API_KEY=${LB_API_KEY}
       - LB_ADMIN_KEY=${LB_ADMIN_KEY}
     volumes:
-      - ./keys.txt:/usr/src/app/keys.txt:ro
+      - ./keys.txt:/usr/src/app/keys.txt
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # Optional: Nginx reverse proxy for SSL termination
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - siliconflow-lb
-    restart: unless-stopped
-    profiles:
-      - nginx

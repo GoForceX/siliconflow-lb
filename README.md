@@ -1,7 +1,7 @@
 # SiliconFlow API Load Balancer
 
-[![Build and Deploy](https://github.com/yourusername/siliconflow-lb/actions/workflows/docker-build.yml/badge.svg)](https://github.com/yourusername/siliconflow-lb/actions/workflows/docker-build.yml)
-[![Docker Image](https://img.shields.io/badge/docker-ghcr.io%2Fyourusername%2Fsiliconflow--lb-blue)](https://ghcr.io/yourusername/siliconflow-lb)
+[![Build and Deploy](https://github.com/GoForceX/siliconflow-lb/actions/workflows/docker-build.yml/badge.svg)](https://github.com/GoForceX/siliconflow-lb/actions/workflows/docker-build.yml)
+[![Docker Image](https://img.shields.io/badge/docker-ghcr.io%2FGoForceX%2Fsiliconflow--lb-blue)](https://ghcr.io/GoForceX/siliconflow-lb)
 
 A high-performance API load balancer for SiliconFlow APIs built with Bun and ElysiaJS. This load balancer distributes requests across multiple API keys using round-robin load balancing with automatic rate limit handling.
 
@@ -30,8 +30,6 @@ A high-performance API load balancer for SiliconFlow APIs built with Bun and Ely
 
 2. **Configure API keys:**
    
-   **Option 1: Using keys.txt file (Recommended for multiple keys)**
-   
    Create a `keys.txt` file in the project root and add your API keys (one per line):
    ```
    sk-your-api-key-1
@@ -39,16 +37,6 @@ A high-performance API load balancer for SiliconFlow APIs built with Bun and Ely
    sk-your-api-key-3
    sk-your-api-key-4
    # Add as many keys as you need...
-   ```
-   
-   **Option 2: Using environment variables (Legacy method)**
-   
-   Edit the `.env` file and add your SiliconFlow API keys:
-   ```env
-   SILICONFLOW_API_KEY_1=your_actual_api_key_1
-   SILICONFLOW_API_KEY_2=your_actual_api_key_2
-   SILICONFLOW_API_KEY_3=your_actual_api_key_3
-   SILICONFLOW_API_KEY_4=your_actual_api_key_4
    ```
    
 3. **Configure security keys:**
@@ -336,7 +324,7 @@ docker build -t siliconflow-lb .
 docker-compose up -d
 
 # Pull from GitHub Container Registry
-docker pull ghcr.io/yourusername/siliconflow-lb:main
+docker pull ghcr.io/GoForceX/siliconflow-lb:main
 ```
 
 ### GitHub Container Registry (GHCR)
@@ -345,7 +333,7 @@ The project includes GitHub Actions for automatic deployment:
 
 1. Push to GitHub repository
 2. GitHub Actions builds and pushes to GHCR
-3. Pull and deploy: `docker pull ghcr.io/yourusername/siliconflow-lb:main`
+3. Pull and deploy: `docker pull ghcr.io/GoForceX/siliconflow-lb:main`
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
 
