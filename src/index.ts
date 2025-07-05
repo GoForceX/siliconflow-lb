@@ -19,20 +19,23 @@ class SiliconFlowLoadBalancer {
   private adminApiKey: string;
 
   constructor() {
-    this.baseUrl = process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
+    this.baseUrl =
+      process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
     this.lbApiKey = process.env.LB_API_KEY || "";
     this.adminApiKey = process.env.LB_ADMIN_KEY || "";
-    
+
     if (!this.lbApiKey || !this.adminApiKey) {
-      throw new Error("LB_API_KEY and LB_ADMIN_KEY must be set in environment variables for security");
+      throw new Error(
+        "LB_API_KEY and LB_ADMIN_KEY must be set in environment variables for security"
+      );
     }
-    
+
     this.initializeApiKeys();
   }
 
   private initializeApiKeys() {
     let keys: string[] = [];
-    
+
     // Try to read from keys.txt file first
     const keysFilePath = join(process.cwd(), "keys.txt");
     if (existsSync(keysFilePath)) {
@@ -40,10 +43,10 @@ class SiliconFlowLoadBalancer {
         const fileContent = readFileSync(keysFilePath, "utf8");
         keys = fileContent
           .split("\n")
-          .map(line => line.trim())
-          .filter(line => line && !line.startsWith("#")) // Remove empty lines and comments
+          .map((line) => line.trim())
+          .filter((line) => line && !line.startsWith("#")) // Remove empty lines and comments
           .filter(Boolean);
-        
+
         if (keys.length > 0) {
           console.log(`📁 Loaded ${keys.length} API keys from keys.txt`);
         }
@@ -53,7 +56,9 @@ class SiliconFlowLoadBalancer {
     }
 
     if (keys.length === 0) {
-      throw new Error("No API keys found in keys.txt file or environment variables");
+      throw new Error(
+        "No API keys found in keys.txt file or environment variables"
+      );
     }
 
     this.apiKeys = keys.map((key) => ({
@@ -73,7 +78,7 @@ class SiliconFlowLoadBalancer {
       const previousCount = this.apiKeys.length;
       this.initializeApiKeys();
       const newCount = this.apiKeys.length;
-      
+
       return {
         success: true,
         message: `Successfully reloaded API keys. Previous: ${previousCount}, New: ${newCount}`,
@@ -95,11 +100,11 @@ class SiliconFlowLoadBalancer {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    
+
     if (token === this.adminApiKey) {
       return { isValid: true, isAdmin: true };
     }
-    
+
     if (token === this.lbApiKey) {
       return { isValid: true, isAdmin: false };
     }
@@ -133,53 +138,64 @@ class SiliconFlowLoadBalancer {
     );
   }
 
-  logRequest(request: Request, auth: { isValid: boolean; isAdmin: boolean }, endpoint: string) {
-    const clientIP = request.headers.get("x-forwarded-for") || 
-                     request.headers.get("x-real-ip") || 
-                     "unknown";
+  logRequest(
+    request: Request,
+    auth: { isValid: boolean; isAdmin: boolean },
+    endpoint: string
+  ) {
+    const clientIP =
+      request.headers.get("x-forwarded-for") ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
     const userAgent = request.headers.get("user-agent") || "unknown";
     const timestamp = new Date().toISOString();
-    
+
     if (!auth.isValid) {
-      console.warn(`🚨 UNAUTHORIZED ACCESS - ${timestamp} - IP: ${clientIP} - Endpoint: ${endpoint} - UA: ${userAgent}`);
+      console.warn(
+        `🚨 UNAUTHORIZED ACCESS - ${timestamp} - IP: ${clientIP} - Endpoint: ${endpoint} - UA: ${userAgent}`
+      );
     } else {
-      console.log(`✅ ${auth.isAdmin ? 'ADMIN' : 'USER'} - ${timestamp} - IP: ${clientIP} - Endpoint: ${endpoint}`);
+      console.log(
+        `✅ ${
+          auth.isAdmin ? "ADMIN" : "USER"
+        } - ${timestamp} - IP: ${clientIP} - Endpoint: ${endpoint}`
+      );
     }
   }
 
   private getNextApiKey(): ApiKey {
     // Round-robin load balancing
-    const availableKeys = this.apiKeys.filter(key => key.isActive);
-    
+    const availableKeys = this.apiKeys.filter((key) => key.isActive);
+
     if (availableKeys.length === 0) {
       throw new Error("No active API keys available");
     }
 
     const key = availableKeys[this.currentIndex % availableKeys.length];
     this.currentIndex = (this.currentIndex + 1) % availableKeys.length;
-    
+
     key.lastUsed = Date.now();
     key.requestCount++;
-    
+
     return key;
   }
 
   async forwardRequest(request: Request): Promise<Response> {
     const apiKey = this.getNextApiKey();
-    
+
     // Create new request with the selected API key
     const headers = new Headers(request.headers);
     headers.set("Authorization", `Bearer ${apiKey.key}`);
-    
+
     // Remove host header to avoid conflicts
     headers.delete("host");
-    
+
     const url = new URL(request.url);
     const targetUrl = `${this.baseUrl}${url.pathname}${url.search}`;
-    
+
     // Check if this is likely a streaming request
     const isStreamingRequest = this.isStreamingRequest(request);
-    
+
     try {
       const response = await fetch(targetUrl, {
         method: request.method,
@@ -193,11 +209,11 @@ class SiliconFlowLoadBalancer {
         setTimeout(() => {
           apiKey.isActive = true;
         }, 60000); // Reactivate after 1 minute
-        
+
         console.log(`⚠️  API key rate limited, temporarily disabled`);
-        
+
         // If we have other keys available, retry with a different key
-        if (this.apiKeys.filter(k => k.isActive).length > 0) {
+        if (this.apiKeys.filter((k) => k.isActive).length > 0) {
           console.log(`🔄 Retrying with different API key...`);
           return this.forwardRequest(request);
         }
@@ -205,11 +221,19 @@ class SiliconFlowLoadBalancer {
 
       // Handle streaming responses
       if (this.isStreamingResponse(response) || isStreamingRequest) {
-        console.log(`🌊 Streaming response detected - Key ${this.apiKeys.indexOf(apiKey) + 1}`);
+        console.log(
+          `🌊 Streaming response detected - Key ${
+            this.apiKeys.indexOf(apiKey) + 1
+          }`
+        );
         return this.createStreamingResponse(response);
       }
 
-      console.log(`📤 Standard response - Key ${this.apiKeys.indexOf(apiKey) + 1} - Status: ${response.status}`);
+      console.log(
+        `📤 Standard response - Key ${
+          this.apiKeys.indexOf(apiKey) + 1
+        } - Status: ${response.status}`
+      );
       return response;
     } catch (error) {
       console.error(`❌ Error forwarding request:`, error);
@@ -235,19 +259,21 @@ class SiliconFlowLoadBalancer {
 
   private isStreamingResponse(response: Response): boolean {
     const contentType = response.headers.get("content-type");
-    return contentType?.includes("text/event-stream") || 
-           contentType?.includes("application/x-ndjson") ||
-           response.headers.get("transfer-encoding") === "chunked";
+    return (
+      contentType?.includes("text/event-stream") ||
+      contentType?.includes("application/x-ndjson") ||
+      response.headers.get("transfer-encoding") === "chunked"
+    );
   }
 
   private createStreamingResponse(originalResponse: Response): Response {
     // Create a new response that preserves streaming
     const headers = new Headers(originalResponse.headers);
-    
+
     // Ensure proper streaming headers
     headers.set("Cache-Control", "no-cache");
     headers.set("Connection", "keep-alive");
-    
+
     return new Response(originalResponse.body, {
       status: originalResponse.status,
       statusText: originalResponse.statusText,
@@ -258,25 +284,27 @@ class SiliconFlowLoadBalancer {
   getStats() {
     return {
       totalKeys: this.apiKeys.length,
-      activeKeys: this.apiKeys.filter(key => key.isActive).length,
+      activeKeys: this.apiKeys.filter((key) => key.isActive).length,
       keyStats: this.apiKeys.map((key, index) => ({
         index: index + 1,
         requestCount: key.requestCount,
         lastUsed: key.lastUsed ? new Date(key.lastUsed).toISOString() : "Never",
         isActive: key.isActive,
         balance: key.balance,
-        lastBalanceCheck: key.lastBalanceCheck ? new Date(key.lastBalanceCheck).toISOString() : "Never",
+        lastBalanceCheck: key.lastBalanceCheck
+          ? new Date(key.lastBalanceCheck).toISOString()
+          : "Never",
       })),
     };
   }
 
   async checkBalance(apiKey: ApiKey): Promise<number> {
     try {
-      const response = await fetch(`${this.baseUrl}/user/balance`, {
-        method: 'GET',
+      const response = await fetch(`${this.baseUrl}/user/info`, {
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${apiKey.key}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey.key}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -286,12 +314,11 @@ class SiliconFlowLoadBalancer {
       }
 
       const data = await response.json();
-      // SiliconFlow API returns balance in different formats, handle common ones
-      const balance = data.balance || data.data?.balance || data.available_balance || 0;
-      
+      const balance = Number(data.data?.totalBalance || 0);
+
       apiKey.balance = balance;
       apiKey.lastBalanceCheck = Date.now();
-      
+
       return balance;
     } catch (error) {
       console.error(`❌ Error checking balance:`, error);
@@ -300,25 +327,29 @@ class SiliconFlowLoadBalancer {
   }
 
   async getTotalBalance(forceRefresh: boolean = false): Promise<{
-    totalBalance: number;
+    totalBalance: string;
     keyBalances: Array<{
       index: number;
-      balance: number;
+      balance: string;
       lastChecked: string;
       isActive: boolean;
     }>;
   }> {
     const now = Date.now();
     const cacheTime = 5 * 60 * 1000; // 5 minutes cache
-    
+
     // Check if we need to refresh balances
-    const needsRefresh = forceRefresh || this.apiKeys.some(key => 
-      !key.lastBalanceCheck || (now - key.lastBalanceCheck) > cacheTime
-    );
+    const needsRefresh =
+      forceRefresh ||
+      this.apiKeys.some(
+        (key) => !key.lastBalanceCheck || now - key.lastBalanceCheck > cacheTime
+      );
 
     if (needsRefresh) {
-      console.log(`🔄 Refreshing balance for ${this.apiKeys.length} API keys...`);
-      
+      console.log(
+        `🔄 Refreshing balance for ${this.apiKeys.length} API keys...`
+      );
+
       // Check balance for all keys in parallel
       const balancePromises = this.apiKeys.map(async (key) => {
         if (key.isActive) {
@@ -331,12 +362,17 @@ class SiliconFlowLoadBalancer {
       await Promise.all(balancePromises);
     }
 
-    const totalBalance = this.apiKeys.reduce((sum, key) => sum + (key.balance || 0), 0);
-    
+    const totalBalance = this.apiKeys.reduce(
+      (sum, key) => sum + (key.balance || 0),
+      0
+    ).toFixed(4);
+
     const keyBalances = this.apiKeys.map((key, index) => ({
       index: index + 1,
-      balance: key.balance || 0,
-      lastChecked: key.lastBalanceCheck ? new Date(key.lastBalanceCheck).toISOString() : "Never",
+      balance: key.balance?.toFixed(4) || "0.0000",
+      lastChecked: key.lastBalanceCheck
+        ? new Date(key.lastBalanceCheck).toISOString()
+        : "Never",
       isActive: key.isActive,
     }));
 
@@ -370,7 +406,7 @@ const app = new Elysia()
     if (!auth.isValid) {
       return loadBalancer.createUnauthorizedResponse();
     }
-    
+
     return {
       message: "SiliconFlow API Load Balancer",
       status: "running",
@@ -383,7 +419,7 @@ const app = new Elysia()
     if (!auth.isValid) {
       return loadBalancer.createUnauthorizedResponse();
     }
-    
+
     return {
       status: "healthy",
       timestamp: new Date().toISOString(),
@@ -396,7 +432,7 @@ const app = new Elysia()
     if (!auth.isValid) {
       return loadBalancer.createUnauthorizedResponse();
     }
-    
+
     return loadBalancer.getStats();
   })
   .get("/balance", async ({ query, request }) => {
@@ -405,7 +441,7 @@ const app = new Elysia()
     if (!auth.isValid) {
       return loadBalancer.createUnauthorizedResponse();
     }
-    
+
     try {
       const forceRefresh = query.refresh === "true";
       const balanceInfo = await loadBalancer.getTotalBalance(forceRefresh);
@@ -432,7 +468,7 @@ const app = new Elysia()
     if (!auth.isAdmin) {
       return loadBalancer.createForbiddenResponse();
     }
-    
+
     try {
       const result = loadBalancer.reloadApiKeys();
       return {
@@ -455,7 +491,7 @@ const app = new Elysia()
     if (!auth.isValid) {
       return loadBalancer.createUnauthorizedResponse();
     }
-    
+
     try {
       const response = await loadBalancer.forwardRequest(request);
       return response;
@@ -481,4 +517,6 @@ console.log(
 console.log(`📊 Stats available at http://localhost:${app.server?.port}/stats`);
 console.log(`🏥 Health check at http://localhost:${app.server?.port}/health`);
 console.log(`💰 Balance check at http://localhost:${app.server?.port}/balance`);
-console.log(`🔄 Reload keys at http://localhost:${app.server?.port}/reload-keys`);
+console.log(
+  `🔄 Reload keys at http://localhost:${app.server?.port}/reload-keys`
+);
