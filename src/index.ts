@@ -185,7 +185,12 @@ class SiliconFlowLoadBalancer {
     return key;
   }
 
-  async forwardRequest(request: Request): Promise<Response> {
+  async forwardRequest(request: Request, remainingRetries: number = 2): Promise<Response> {
+    if (remainingRetries < 0) {
+      console.error("❌ Maximum retries exceeded, no active API keys available");
+      throw new Error("No active API keys available");
+    }
+
     const apiKey = this.getNextApiKey();
 
     // Create new request with the selected API key
@@ -220,7 +225,7 @@ class SiliconFlowLoadBalancer {
         // If we have other keys available, retry with a different key
         if (this.apiKeys.filter((k) => k.isActive).length > 0) {
           console.log(`🔄 Retrying with different API key...`);
-          return this.forwardRequest(request);
+          return this.forwardRequest(request, remainingRetries - 1);
         }
       }
 
@@ -231,7 +236,7 @@ class SiliconFlowLoadBalancer {
         // If we have other keys available, retry with a different key
         if (this.apiKeys.filter((k) => k.isActive).length > 0) {
           console.log(`🔄 Retrying with different API key after removing insufficient balance key...`);
-          return this.forwardRequest(request);
+          return this.forwardRequest(request, remainingRetries - 1);
         }
       }
 
