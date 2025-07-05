@@ -201,7 +201,8 @@ class SiliconFlowLoadBalancer {
     headers.delete("host");
 
     const url = new URL(request.url);
-    const targetUrl = `${this.baseUrl}${url.pathname}${url.search}`;
+    const pathname = url.pathname.startsWith("/v1") ? url.pathname.replace("/v1", "") : url.pathname;
+    const targetUrl = `${this.baseUrl}${pathname}${url.search}`;
 
     // Check if this is likely a streaming request
     const isStreamingRequest = this.isStreamingRequest(request);
@@ -613,6 +614,31 @@ const app = new Elysia()
         message: error instanceof Error ? error.message : "Unknown error",
         remainingKeys: loadBalancer.getKeyCount(),
       };
+    }
+  })
+  .all("/v1/*", async ({ request }) => {
+    const auth = loadBalancer.authenticateApiKey(request);
+    const url = new URL(request.url);
+    loadBalancer.logRequest(request, auth, url.pathname);
+    if (!auth.isValid) {
+      return loadBalancer.createUnauthorizedResponse();
+    }
+
+    try {
+      const response = await loadBalancer.forwardRequest(request);
+      return response;
+    } catch (error) {
+      console.error("Load balancer error:", error);
+      return new Response(
+        JSON.stringify({
+          error: "Load balancer error",
+          message: error instanceof Error ? error.message : "Unknown error",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
   })
   .all("/*", async ({ request }) => {
