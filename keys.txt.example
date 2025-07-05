@@ -1,0 +1,12 @@
+# SiliconFlow API Keys
+# Add one API key per line
+# Lines starting with # are comments and will be ignored
+# Empty lines are also ignored
+
+# Example keys (replace with your actual keys):
+# sk-your-api-key-1
+# sk-your-api-key-2
+# sk-your-api-key-3
+# sk-your-api-key-4
+
+# Add your actual API keys below:

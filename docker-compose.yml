@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  siliconflow-lb:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+      - PORT=3000
+      - LB_API_KEY=${LB_API_KEY}
+      - LB_ADMIN_KEY=${LB_ADMIN_KEY}
+    volumes:
+      - ./keys.txt:/usr/src/app/keys.txt:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Nginx reverse proxy for SSL termination
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - siliconflow-lb
+    restart: unless-stopped
+    profiles:
+      - nginx
