@@ -215,10 +215,6 @@ The load balancer automatically:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SILICONFLOW_API_KEY_1` | First API key | Required |
-| `SILICONFLOW_API_KEY_2` | Second API key | Optional |
-| `SILICONFLOW_API_KEY_3` | Third API key | Optional |
-| `SILICONFLOW_API_KEY_4` | Fourth API key | Optional |
 | `SILICONFLOW_BASE_URL` | SiliconFlow API base URL | `https://api.siliconflow.cn/v1` |
 | `PORT` | Load balancer port | `3000` |
 | `LB_API_KEY` | Load balancer API key | Required |
@@ -265,7 +261,7 @@ const response = await fetch('http://localhost:3000/chat/completions', {
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    model: 'deepseek-ai/DeepSeek-V2.5',
+    model: 'deepseek-ai/DeepSeek-V3',
     messages: [{ role: 'user', content: 'Write a story' }],
     stream: true
   })
@@ -342,17 +338,10 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
 
 ### API Keys Configuration
 
-**Option 1: keys.txt file (Recommended)**
 ```
 sk-your-api-key-1
 sk-your-api-key-2
 # Add more keys...
-```
-
-**Option 2: Environment variables**
-```env
-SILICONFLOW_API_KEY_1=sk-your-key-1
-SILICONFLOW_API_KEY_2=sk-your-key-2
 ```
 
 ## License
