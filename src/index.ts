@@ -332,11 +332,15 @@ class SiliconFlowLoadBalancer {
 
       if (!response.ok) {
         console.error(`❌ Failed to check balance for key: ${response.status}`);
-        return 0;
+        throw new Error("Failed to check balance");
       }
 
       const data = await response.json();
-      const balance = Number(data.data?.totalBalance || 0);
+      if (!data.data) {
+        console.error(`❌ Failed to check balance for key: ${response.status}`);
+        throw new Error("Failed to check balance");
+      }
+      const balance = Number(data.data.totalBalance);
 
       apiKey.balance = balance;
       apiKey.lastBalanceCheck = Date.now();
@@ -344,7 +348,7 @@ class SiliconFlowLoadBalancer {
       return balance;
     } catch (error) {
       console.error(`❌ Error checking balance:`, error);
-      return 0;
+      throw error;
     }
   }
 
@@ -375,7 +379,11 @@ class SiliconFlowLoadBalancer {
       // Check balance for all keys in parallel
       const balancePromises = this.apiKeys.map(async (key) => {
         if (key.isActive) {
-          return await this.checkBalance(key);
+          try {
+            return await this.checkBalance(key);
+          } catch (e) {
+            return 0;
+          }
         } else {
           return key.balance || 0;
         }
