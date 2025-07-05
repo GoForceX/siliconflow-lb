@@ -13,6 +13,7 @@ A high-performance API load balancer for SiliconFlow APIs built with Bun and Ely
 - **Automatic retry on rate limits** - switches to different key when one is rate limited
 - **Balance monitoring** - check total balance across all API keys
 - **Dynamic key reloading** - reload API keys without restarting the server
+- **Automatic key cleanup** - removes keys with insufficient balance automatically
 - **File-based key management** - supports 100+ keys from a simple text file
 - **API key authentication** - secure access with user and admin API keys
 - **Request logging** - monitor all access attempts with IP tracking
@@ -101,6 +102,7 @@ curl -H "Authorization: Bearer your_lb_api_key" http://localhost:3000/models
 - **Health**: `GET /health` - Health check endpoint (requires API key)
 - **Balance**: `GET /balance` - Check total balance across all API keys (requires API key)
 - **Reload Keys**: `POST /reload-keys` - Reload API keys from file (requires admin key)
+- **Cleanup Keys**: `POST /cleanup-keys` - Remove keys with insufficient balance (requires admin key)
 - **Home**: `GET /` - Basic info and stats (requires API key)
 
 ### Security
@@ -191,6 +193,28 @@ Reload API keys without restarting the server:
 ```bash
 # Reload keys from keys.txt (requires admin key)
 curl -X POST -H "Authorization: Bearer your_lb_admin_key" http://localhost:3000/reload-keys
+
+# Clean up keys with insufficient balance (requires admin key)
+curl -X POST -H "Authorization: Bearer your_lb_admin_key" http://localhost:3000/cleanup-keys
+```
+
+### Automatic Key Management
+
+The load balancer automatically manages API keys:
+
+1. **Automatic Balance Monitoring**: When requests fail with payment errors (401, 402, 403), the system automatically checks the key's balance
+2. **Automatic Key Removal**: Keys with insufficient balance (≤ 0) are automatically removed from both memory and the `keys.txt` file
+3. **Periodic Cleanup**: Every 30 minutes, the system checks all keys and removes those with insufficient balance
+4. **Manual Cleanup**: Use the `/cleanup-keys` endpoint to manually trigger balance checking and cleanup
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "timestamp": "2025-07-05T10:30:00.000Z",
+  "message": "Cleanup completed successfully",
+  "remainingKeys": 8
+}
 ```
 
 Response:

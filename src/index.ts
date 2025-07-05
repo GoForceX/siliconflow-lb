@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 
 interface ApiKey {
@@ -31,6 +31,11 @@ class SiliconFlowLoadBalancer {
     }
 
     this.initializeApiKeys();
+    
+    // Schedule periodic cleanup of insufficient balance keys (every 30 minutes)
+    setInterval(() => {
+      this.cleanupInsufficientBalanceKeys();
+    }, 30 * 60 * 1000);
   }
 
   private initializeApiKeys() {
@@ -219,6 +224,17 @@ class SiliconFlowLoadBalancer {
         }
       }
 
+      // Check for insufficient balance or other payment-related errors
+      if (response.status >= 400) {
+        await this.removeInsufficientBalanceKey(apiKey);
+        
+        // If we have other keys available, retry with a different key
+        if (this.apiKeys.filter((k) => k.isActive).length > 0) {
+          console.log(`🔄 Retrying with different API key after removing insufficient balance key...`);
+          return this.forwardRequest(request);
+        }
+      }
+
       // Handle streaming responses
       if (this.isStreamingResponse(response) || isStreamingRequest) {
         console.log(
@@ -381,6 +397,88 @@ class SiliconFlowLoadBalancer {
       keyBalances,
     };
   }
+
+  async removeInsufficientBalanceKey(apiKey: ApiKey): Promise<void> {
+    try {
+      // Check balance first
+      const balance = await this.checkBalance(apiKey);
+      
+      if (balance <= 0.1) {
+        console.log(`💸 Removing key with insufficient balance: ${balance}`);
+        
+        // Remove from memory
+        const keyIndex = this.apiKeys.findIndex(k => k.key === apiKey.key);
+        if (keyIndex > -1) {
+          this.apiKeys.splice(keyIndex, 1);
+        }
+        
+        // Remove from keys.txt file
+        const keysFilePath = join(process.cwd(), "keys.txt");
+        if (existsSync(keysFilePath)) {
+          try {
+            const fileContent = readFileSync(keysFilePath, "utf8");
+            const lines = fileContent.split("\n");
+            
+            // Filter out the key while preserving comments and empty lines
+            const filteredLines = lines.filter(line => {
+              const trimmed = line.trim();
+              // Keep comments and empty lines
+              if (!trimmed || trimmed.startsWith("#")) {
+                return true;
+              }
+              // Remove the specific key
+              return trimmed !== apiKey.key;
+            });
+            
+            // Write back to file
+            writeFileSync(keysFilePath, filteredLines.join("\n"), "utf8");
+            
+            console.log(`🗑️  Removed insufficient balance key from keys.txt file`);
+            console.log(`📊 Remaining keys: ${this.apiKeys.length}`);
+          } catch (error) {
+            console.error("❌ Error updating keys.txt file:", error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error checking balance for key removal:", error);
+    }
+  }
+
+  async cleanupInsufficientBalanceKeys(): Promise<void> {
+    console.log(`🧹 Running periodic cleanup of insufficient balance keys...`);
+    
+    const keysToRemove: ApiKey[] = [];
+    
+    // Check balance for all keys in parallel
+    const balanceChecks = this.apiKeys.map(async (key) => {
+      try {
+        const balance = await this.checkBalance(key);
+        if (balance <= 0.1) {
+          keysToRemove.push(key);
+        }
+      } catch (error) {
+        console.error(`❌ Error checking balance for cleanup:`, error);
+      }
+    });
+    
+    await Promise.all(balanceChecks);
+    
+    // Remove keys with insufficient balance
+    for (const key of keysToRemove) {
+      await this.removeInsufficientBalanceKey(key);
+    }
+    
+    if (keysToRemove.length > 0) {
+      console.log(`🧹 Cleanup completed: removed ${keysToRemove.length} keys with insufficient balance`);
+    } else {
+      console.log(`🧹 Cleanup completed: all keys have sufficient balance`);
+    }
+  }
+
+  getKeyCount(): number {
+    return this.apiKeys.length;
+  }
 }
 
 const loadBalancer = new SiliconFlowLoadBalancer();
@@ -397,6 +495,7 @@ const app = new Elysia()
       "/stats": "Load balancer statistics (requires API key)",
       "/balance": "Balance check (requires API key)",
       "/reload-keys": "Reload API keys (requires admin key)",
+      "/cleanup-keys": "Remove keys with insufficient balance (requires admin key)",
       "/*": "Proxy to SiliconFlow API (requires API key)",
     },
   }))
@@ -484,6 +583,33 @@ const app = new Elysia()
       };
     }
   })
+  .post("/cleanup-keys", async ({ request }) => {
+    const auth = loadBalancer.authenticateApiKey(request);
+    loadBalancer.logRequest(request, auth, "/cleanup-keys");
+    if (!auth.isValid) {
+      return loadBalancer.createUnauthorizedResponse();
+    }
+    if (!auth.isAdmin) {
+      return loadBalancer.createForbiddenResponse();
+    }
+
+    try {
+      await loadBalancer.cleanupInsufficientBalanceKeys();
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        message: "Cleanup completed successfully",
+        remainingKeys: loadBalancer.getKeyCount(),
+      };
+    } catch (error) {
+      console.error("Cleanup keys error:", error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Unknown error",
+        remainingKeys: loadBalancer.getKeyCount(),
+      };
+    }
+  })
   .all("/*", async ({ request }) => {
     const auth = loadBalancer.authenticateApiKey(request);
     const url = new URL(request.url);
@@ -519,4 +645,7 @@ console.log(`🏥 Health check at http://localhost:${app.server?.port}/health`);
 console.log(`💰 Balance check at http://localhost:${app.server?.port}/balance`);
 console.log(
   `🔄 Reload keys at http://localhost:${app.server?.port}/reload-keys`
+);
+console.log(
+  `🧹 Cleanup keys at http://localhost:${app.server?.port}/cleanup-keys`
 );
